@@ -157,18 +157,22 @@ export default function App() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [orderMode, setOrderMode] = useState("retail");
-  const [quoteItems, setQuoteItems] = useState([
-    {
-      id: PARTS_CATALOG[0].id,
-      sku: PARTS_CATALOG[0].sku,
-      name: PARTS_CATALOG[0].name,
-      variantKey: "performance",
-      variantLabel: PARTS_CATALOG[0].variants.performance.label,
-      unitPriceAED: PARTS_CATALOG[0].variants.performance.priceAED,
-      bulkDiscountPct: PARTS_CATALOG[0].variants.performance.bulkDiscountPct,
-      qty: 1,
-    },
-  ]);
+  const [quoteItems, setQuoteItems] = useState(() => {
+    try {
+      const saved = localStorage.getItem("alahram_quote_items");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("alahram_quote_items", JSON.stringify(quoteItems));
+    } catch {
+      // Ignore storage restrictions
+    }
+  }, [quoteItems]);
   const [destinationCity, setDestinationCity] = useState("");
   const [customerNotes, setCustomerNotes] = useState("");
   const [quoteRef] = useState(
@@ -424,9 +428,11 @@ export default function App() {
           >
             <ShoppingBag className="h-3.5 w-3.5" />
             <span>Quote</span>
-            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#D9383A] px-1 text-[10px] font-bold text-white">
-              {quoteItems.reduce((acc, i) => acc + i.qty, 0)}
-            </span>
+            {quoteItems.length > 0 && (
+              <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#D9383A] px-1 text-[10px] font-bold text-white">
+                {quoteItems.reduce((acc, i) => acc + i.qty, 0)}
+              </span>
+            )}
           </button>
         </div>
 
@@ -1408,7 +1414,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
                 {quoteItems.length === 0 ? (
                   <div className="py-14 text-center text-sm text-zinc-500">
                     Your inquiry bag is empty. Select a spare part to request pricing.
