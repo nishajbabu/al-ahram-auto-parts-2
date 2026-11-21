@@ -794,16 +794,16 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
   useEffect(() => {
     const unsub = scrollYProgress.on("change", (v) => {
       progressRef.current = v;
-      setScrollPct(Math.round(v * 100));
+      setScrollPct(Math.min(100, Math.round((v / 0.94) * 100)));
 
       if (v < 0.18) setStageIdx(0);
       else if (v < 0.34) setStageIdx(1);
       else if (v < 0.5) setStageIdx(2);
-      else if (v < 0.67) setStageIdx(3);
-      else if (v < 0.84) setStageIdx(4);
+      else if (v < 0.68) setStageIdx(3);
+      else if (v < 0.86) setStageIdx(4);
       else setStageIdx(5);
 
-      if (v >= 0.99 && !completedRef.current) {
+      if (v >= 0.94 && !completedRef.current) {
         completedRef.current = true;
         onComplete();
       }
