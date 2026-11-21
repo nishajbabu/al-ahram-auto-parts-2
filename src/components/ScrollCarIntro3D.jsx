@@ -7,39 +7,6 @@ import { ArrowDown, ArrowUpRight, MoveHorizontal } from "lucide-react";
 import { LUXURY_EASE, PARTS_CATALOG } from "../data/partsCatalog";
 import { PartBlueprintSVG } from "./PrecisionVisuals";
 
-const INTRO_STAGES = [
-  {
-    num: "01",
-    title: "Diagonal Silhouette",
-    subtitle: "Drag sideways to orbit 360° or scroll down to inspect internal hardware.",
-  },
-  {
-    num: "02",
-    title: "Overhead Plan View",
-    subtitle: "Balanced chassis geometry and symmetrical axle alignment.",
-  },
-  {
-    num: "03",
-    title: "Internal Hardware X-Ray",
-    subtitle: "Translucent shell revealing Al Ahram braking, suspension, cooling, and powertrain cores.",
-  },
-  {
-    num: "04",
-    title: "Exploded Architecture",
-    subtitle: "Separating core mechanical assemblies cleanly in 3D space.",
-  },
-  {
-    num: "05",
-    title: "Assembled Hardware Matrix",
-    subtitle: "Tap any 3D assembly to configure specs, or scroll further for the full selector.",
-  },
-  {
-    num: "06",
-    title: "Select a Precision Spare Part",
-    subtitle: "Tap any component to configure OEM vs. Heavy-Duty specs.",
-  },
-];
-
 const PAINT_FINISHES = [
   { id: "original", label: "Original Champagne", swatch: "#B5A895", hex: null },
   { id: "obsidian", label: "Obsidian Carbon", swatch: "#1B202B", hex: "#1B202B" },
@@ -766,7 +733,6 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
   const orbitRef = useRef({ yaw: 0, dragging: false, lastX: 0 });
 
   const [stageIdx, setStageIdx] = useState(0);
-  const [scrollPct, setScrollPct] = useState(0);
   const [paintId, setPaintId] = useState("original");
   const [hoveredPartId, setHoveredPartId] = useState(null);
 
@@ -794,7 +760,6 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
   useEffect(() => {
     const unsub = scrollYProgress.on("change", (v) => {
       progressRef.current = v;
-      setScrollPct(Math.min(100, Math.round((v / 0.94) * 100)));
 
       if (v < 0.18) setStageIdx(0);
       else if (v < 0.34) setStageIdx(1);
@@ -818,7 +783,6 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
     };
   }, [hoveredPartId, stageIdx]);
 
-  const currentStage = INTRO_STAGES[stageIdx];
   const showPaintPicker = stageIdx <= 1;
   const show3DGridLabels = stageIdx === 4;
   const showFullCardGrid = stageIdx === 5;
@@ -998,7 +962,7 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: LUXURY_EASE }}
-              className="absolute inset-x-0 bottom-14 top-14 z-20 mx-auto flex max-w-6xl flex-col justify-center px-3.5 sm:bottom-16 sm:top-16 sm:px-8"
+              className="absolute inset-x-0 bottom-6 top-14 z-20 mx-auto flex max-w-6xl flex-col justify-center px-3.5 sm:bottom-8 sm:top-16 sm:px-8"
             >
               <div className="mb-2 text-center sm:mb-5">
                 <span className="font-mono-tech inline-block rounded-full border border-sky-400/35 bg-sky-500/10 px-3 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-sky-300 sm:text-[10px]">
@@ -1070,36 +1034,6 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
         >
           {showFullCardGrid ? "Enter Site" : "Skip Intro"} <ArrowDown className="h-3.5 w-3.5" />
         </button>
-
-        {/* Bottom-Left Stage Callout (Zero overlap with right progress bar) */}
-        <div className="pointer-events-none absolute bottom-4 left-4 z-20 max-w-[58%] sm:bottom-8 sm:left-10 sm:max-w-md">
-          <div className="font-mono-tech inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-sky-300 backdrop-blur-md sm:px-3 sm:py-1 sm:text-[10px]">
-            STAGE {currentStage.num} / 06
-          </div>
-          {!showFullCardGrid && (
-            <>
-              <h2 className="mt-1.5 text-lg font-light tracking-tight text-white sm:mt-2 sm:text-3xl">
-                {currentStage.title}
-              </h2>
-              <p className="mt-0.5 hidden text-xs leading-relaxed text-zinc-300 sm:block sm:text-sm">
-                {currentStage.subtitle}
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* Bottom-Right Progress Bar */}
-        <div className="pointer-events-none absolute bottom-4 right-4 z-20 flex flex-col items-end gap-1.5 sm:bottom-8 sm:right-10">
-          <span className="font-mono-tech text-[9px] uppercase tracking-[0.18em] text-zinc-400 sm:text-[10px]">
-            {scrollPct < 90 ? "SCROLL" : "ENTER"} • {scrollPct}%
-          </span>
-          <div className="h-[2px] w-24 overflow-hidden rounded-full bg-white/15 sm:w-40">
-            <div
-              className="h-full bg-[#D9383A] transition-all duration-75"
-              style={{ width: `${scrollPct}%` }}
-            />
-          </div>
-        </div>
       </div>
     </section>
   );
