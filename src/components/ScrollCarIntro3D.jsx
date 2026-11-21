@@ -1,6 +1,6 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Lightformer, useGLTF } from "@react-three/drei";
+import { Environment, Html, Lightformer, useGLTF } from "@react-three/drei";
 import { AnimatePresence, motion, useScroll } from "framer-motion";
 import * as THREE from "three";
 import { ArrowDown, ArrowUpRight, MoveHorizontal } from "lucide-react";
@@ -11,7 +11,7 @@ const INTRO_STAGES = [
   {
     num: "01",
     title: "Diagonal Silhouette",
-    subtitle: "Drag to orbit 360° or scroll to inspect overhead geometry and internal hardware.",
+    subtitle: "Drag sideways to orbit 360° or scroll down to inspect internal hardware.",
   },
   {
     num: "02",
@@ -31,12 +31,12 @@ const INTRO_STAGES = [
   {
     num: "05",
     title: "Assembled Hardware Matrix",
-    subtitle: "Click any 3D assembly to configure specs, or scroll further for the full selector.",
+    subtitle: "Tap any 3D assembly to configure specs, or scroll further for the full selector.",
   },
   {
     num: "06",
     title: "Select a Precision Spare Part",
-    subtitle: "Click any component to configure OEM vs. Heavy-Duty specs.",
+    subtitle: "Tap any component to configure OEM vs. Heavy-Duty specs.",
   },
 ];
 
@@ -178,13 +178,14 @@ function CarGLBModel({ progressRef, paintHex }) {
   );
 }
 
-function FallbackChassis({ progressRef }) {
+function FallbackChassis({ progressRef, isLoading = false }) {
   const ref = useRef(null);
-  useFrame(() => {
+  useFrame((_, delta) => {
     const explodeAmt = rangeProgress(progressRef.current, 0.52, 0.66);
     if (ref.current) {
       ref.current.position.y = lerp(0, 2.0, explodeAmt);
       ref.current.visible = explodeAmt < 0.98;
+      if (isLoading) ref.current.rotation.y += delta * 0.6;
     }
   });
 
@@ -192,8 +193,15 @@ function FallbackChassis({ progressRef }) {
     <group ref={ref}>
       <mesh position={[0, 0.1, 0]}>
         <boxGeometry args={[1.85, 0.65, 4.15]} />
-        <meshStandardMaterial color="#64748b" wireframe transparent opacity={0.42} />
+        <meshStandardMaterial color="#38bdf8" wireframe transparent opacity={0.35} />
       </mesh>
+      {isLoading && (
+        <Html center>
+          <div className="font-mono-tech whitespace-nowrap rounded-full border border-sky-400/35 bg-black/80 px-3.5 py-1.5 text-[10px] uppercase tracking-[0.22em] text-sky-300 backdrop-blur-md">
+            Loading 3D Vehicle...
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -208,6 +216,22 @@ function StudioGridFloor({ progressRef }) {
     }
   });
   return <gridHelper ref={ref} args={[14, 24, "#334155", "#141824"]} position={[0, -0.56, 0]} />;
+}
+
+/**
+ * Clean 3D-Anchored Label (Always sits dead-center below its part on any screen size)
+ */
+function GridPartCaption({ visible, text, colorClass = "text-zinc-300" }) {
+  if (!visible) return null;
+  return (
+    <Html center zIndexRange={[10, 0]}>
+      <div
+        className={`font-mono-tech pointer-events-none select-none whitespace-nowrap text-center text-[9px] font-medium uppercase tracking-[0.14em] sm:text-[11px] sm:tracking-[0.2em] ${colorClass}`}
+      >
+        {text}
+      </div>
+    </Html>
+  );
 }
 
 function DetailedBrakeUnit({ sideSign = -1 }) {
@@ -302,7 +326,16 @@ function DetailedStrutUnit({ coilGeo }) {
   );
 }
 
-function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onSelectPart }) {
+function InternalHardwareRig({
+  progressRef,
+  showGridCaptions,
+  hoveredPartId,
+  setHoveredPartId,
+  onSelectPart,
+}) {
+  const { size } = useThree();
+  const isPortrait = size.width < size.height;
+
   const rigRef = useRef(null);
   const engineRef = useRef(null);
   const radiatorRef = useRef(null);
@@ -347,6 +380,12 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
     const explode = rangeProgress(p, 0.5, 0.66);
     const assemble = rangeProgress(p, 0.67, 0.8);
 
+    // Responsive 3D Grid Coordinates (tighter X on mobile portrait so parts look large & balanced)
+    const topX = isPortrait ? 1.45 : 2.0;
+    const topY = isPortrait ? 1.05 : 0.92;
+    const botX = isPortrait ? 0.9 : 1.08;
+    const botY = isPortrait ? -0.42 : -0.46;
+
     if (rigRef.current) {
       rigRef.current.visible = reveal > 0.02;
       rigRef.current.scale.setScalar(lerp(0.84, 1, reveal));
@@ -359,11 +398,11 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
     if (engineRef.current) {
       const hoverBoost = hoveredPartId === "cylinder-heads" && assemble > 0.5 ? 1.14 : 1;
       engineRef.current.position.set(
-        lerp(0, -2.0, assemble),
-        lerp(lerp(0.02, 1.05, explode), 0.92, assemble),
+        lerp(0, -topX, assemble),
+        lerp(lerp(0.02, 1.05, explode), topY, assemble),
         lerp(1.05, 0, assemble)
       );
-      engineRef.current.scale.setScalar(lerp(1, 1.15 * hoverBoost, assemble));
+      engineRef.current.scale.setScalar(lerp(1, (isPortrait ? 0.96 : 1.15) * hoverBoost, assemble));
       if (assemble > 0.3) engineRef.current.rotation.y += delta * 0.42 * assemble;
       else engineRef.current.rotation.y = 0;
     }
@@ -373,10 +412,10 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
       const hoverBoost = hoveredPartId === "water-pumps" && assemble > 0.5 ? 1.14 : 1;
       radiatorRef.current.position.set(
         0,
-        lerp(lerp(0, 0.3, explode), 0.92, assemble),
+        lerp(lerp(0, 0.3, explode), topY, assemble),
         lerp(lerp(1.75, 2.55, explode), 0, assemble)
       );
-      radiatorRef.current.scale.setScalar(lerp(1, 1.05 * hoverBoost, assemble));
+      radiatorRef.current.scale.setScalar(lerp(1, (isPortrait ? 0.92 : 1.05) * hoverBoost, assemble));
       if (assemble > 0.3) radiatorRef.current.rotation.y += delta * 0.32 * assemble;
       else radiatorRef.current.rotation.y = 0;
     }
@@ -385,24 +424,24 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
     if (exhaustRef.current) {
       const hoverBoost = hoveredPartId === "mufflers" && assemble > 0.5 ? 1.14 : 1;
       exhaustRef.current.position.set(
-        lerp(0, 2.0, assemble),
-        lerp(lerp(-0.34, -0.7, explode), 0.92, assemble),
+        lerp(0, topX, assemble),
+        lerp(lerp(-0.34, -0.7, explode), topY, assemble),
         lerp(lerp(-0.45, -1.35, explode), 0, assemble)
       );
-      exhaustRef.current.scale.setScalar(lerp(1, 0.62 * hoverBoost, assemble));
+      exhaustRef.current.scale.setScalar(lerp(1, (isPortrait ? 0.52 : 0.62) * hoverBoost, assemble));
       if (assemble > 0.3) exhaustRef.current.rotation.y += delta * 0.42 * assemble;
       else exhaustRef.current.rotation.y = 0;
     }
 
-    // 4. Brake Rotor -> Bottom-Left (raised slightly to clear label cleanly)
+    // 4. Brake Rotor -> Bottom-Left
     if (brakeHeroRef.current) {
       const hoverBoost = hoveredPartId === "brake-pads-rotors" && assemble > 0.5 ? 1.14 : 1;
       brakeHeroRef.current.position.set(
-        lerp(lerp(-0.92, -1.85, explode), -1.08, assemble),
-        lerp(lerp(-0.22, 0.1, explode), -0.46, assemble),
+        lerp(lerp(-0.92, -1.85, explode), -botX, assemble),
+        lerp(lerp(-0.22, 0.1, explode), botY, assemble),
         lerp(1.32, 0, assemble)
       );
-      brakeHeroRef.current.scale.setScalar(lerp(1, 1.52 * hoverBoost, assemble));
+      brakeHeroRef.current.scale.setScalar(lerp(1, (isPortrait ? 1.32 : 1.52) * hoverBoost, assemble));
       brakeHeroRef.current.rotation.y = lerp(
         0,
         Math.PI / 2 + Math.sin(state.clock.elapsedTime * 0.85) * 0.3,
@@ -410,15 +449,15 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
       );
     }
 
-    // 5. Helical Monotube Strut -> Bottom-Right (raised slightly to clear label cleanly)
+    // 5. Helical Monotube Strut -> Bottom-Right
     if (strutHeroRef.current) {
       const hoverBoost = hoveredPartId === "struts" && assemble > 0.5 ? 1.14 : 1;
       strutHeroRef.current.position.set(
-        lerp(lerp(-0.75, -1.65, explode), 1.08, assemble),
-        lerp(lerp(0.2, 0.52, explode), -0.46, assemble),
+        lerp(lerp(-0.75, -1.65, explode), botX, assemble),
+        lerp(lerp(0.2, 0.52, explode), botY, assemble),
         lerp(1.32, 0, assemble)
       );
-      strutHeroRef.current.scale.setScalar(lerp(1, 1.48 * hoverBoost, assemble));
+      strutHeroRef.current.scale.setScalar(lerp(1, (isPortrait ? 1.32 : 1.48) * hoverBoost, assemble));
       if (assemble > 0.3) strutHeroRef.current.rotation.y += delta * 0.5 * assemble;
       else strutHeroRef.current.rotation.y = 0;
     }
@@ -498,6 +537,10 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
           <cylinderGeometry args={[0.13, 0.13, 0.05, 24]} />
           <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.18} />
         </mesh>
+
+        <group position={[0, -0.58, 0]}>
+          <GridPartCaption visible={showGridCaptions} text="Cylinder Heads" colorClass="text-zinc-200" />
+        </group>
       </group>
 
       {/* 2. COOLING RADIATOR & DUAL TURBINE FANS */}
@@ -567,6 +610,10 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
             </group>
           </group>
         ))}
+
+        <group position={[0, -0.58, 0]}>
+          <GridPartCaption visible={showGridCaptions} text="Cooling & Fans" colorClass="text-sky-300" />
+        </group>
       </group>
 
       {/* 3. TITANIUM EXHAUST & WELDED MUFFLERS */}
@@ -604,6 +651,10 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
             </mesh>
           </group>
         ))}
+
+        <group position={[0, -0.92, -0.35]}>
+          <GridPartCaption visible={showGridCaptions} text="Exhaust & Mufflers" colorClass="text-amber-300" />
+        </group>
       </group>
 
       {/* 4. HERO BRAKE ROTOR */}
@@ -621,6 +672,9 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
         }}
       >
         <DetailedBrakeUnit sideSign={-1} />
+        <group position={[0, -0.46, 0]}>
+          <GridPartCaption visible={showGridCaptions} text="Brake Pads & Rotors" colorClass="text-zinc-200" />
+        </group>
       </group>
 
       {/* 5. HERO HELICAL COILOVER STRUT */}
@@ -638,6 +692,9 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
         }}
       >
         <DetailedStrutUnit coilGeo={coilGeo} />
+        <group position={[0, -0.48, 0]}>
+          <GridPartCaption visible={showGridCaptions} text="Monotube Struts" colorClass="text-[#ff7375]" />
+        </group>
       </group>
 
       {extraCorners.map((pos, idx) => (
@@ -658,9 +715,6 @@ function InternalHardwareRig({ progressRef, hoveredPartId, setHoveredPartId, onS
   );
 }
 
-/**
- * Interactive 360° Drag-to-Orbit + Pointer Parallax Camera Rig
- */
 function ScrollCameraRig({ progressRef, orbitRef, pointerRef }) {
   const { camera, size } = useThree();
   const targetVec = useMemo(() => new THREE.Vector3(), []);
@@ -668,7 +722,7 @@ function ScrollCameraRig({ progressRef, orbitRef, pointerRef }) {
   useFrame(() => {
     const p = progressRef.current;
     const aspect = size.width / Math.max(1, size.height);
-    const mobileZoomMult = aspect < 1 ? Math.min(1.85, 1.05 / Math.max(0.55, aspect)) : 1;
+    const mobileZoomMult = aspect < 1 ? Math.min(1.65, 0.98 / Math.max(0.55, aspect)) : 1;
 
     let baseX = 0;
     let baseY = 0;
@@ -693,13 +747,12 @@ function ScrollCameraRig({ progressRef, orbitRef, pointerRef }) {
       const t = rangeProgress(p, 0.67, 0.8);
       baseX = lerp(4.3 * mobileZoomMult, 0, t);
       baseY = lerp(2.2, 0.12, t);
-      baseZ = lerp(4.7 * mobileZoomMult, 6.0 * mobileZoomMult, t);
+      baseZ = lerp(4.7 * mobileZoomMult, aspect < 1 ? 7.2 : 6.0, t);
     }
 
-    // Apply interactive 360° drag orbit in Stages 01-04, dampen smoothly in Stage 05 grid
     const gridDamp = 1 - rangeProgress(p, 0.67, 0.78);
-    const yaw = orbitRef.current.yaw * gridDamp + pointerRef.current.x * (gridDamp > 0.2 ? 0.22 : 0.08);
-    const pitchLift = pointerRef.current.y * 0.35;
+    const yaw = orbitRef.current.yaw * gridDamp + pointerRef.current.x * (gridDamp > 0.2 ? 0.22 : 0.06);
+    const pitchLift = pointerRef.current.y * 0.28;
 
     const cosY = Math.cos(yaw);
     const sinY = Math.sin(yaw);
@@ -714,12 +767,13 @@ function ScrollCameraRig({ progressRef, orbitRef, pointerRef }) {
   return null;
 }
 
+useGLTF.preload("/models/car.glb");
+
 export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
   const containerRef = useRef(null);
   const progressRef = useRef(0);
   const completedRef = useRef(false);
 
-  // Interactive pointer parallax & 360° drag state
   const pointerRef = useRef({ x: 0, y: 0 });
   const orbitRef = useRef({ yaw: 0, dragging: false, lastX: 0 });
 
@@ -788,7 +842,7 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
       className="relative h-[360vh] bg-[#0B0B0D] print:hidden"
     >
       <div
-        className="sticky top-0 h-[100dvh] w-full overflow-hidden bg-[radial-gradient(circle_at_center,#191E2B_0%,#08090C_78%)] select-none"
+        className="sticky top-0 h-[100dvh] w-full touch-pan-y overflow-hidden bg-[radial-gradient(circle_at_center,#191E2B_0%,#08090C_78%)] select-none"
         onPointerDown={(e) => {
           orbitRef.current.dragging = true;
           orbitRef.current.lastX = e.clientX;
@@ -857,13 +911,14 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
             <ScrollCameraRig progressRef={progressRef} orbitRef={orbitRef} pointerRef={pointerRef} />
 
             <ModelErrorBoundary fallback={<FallbackChassis progressRef={progressRef} />}>
-              <Suspense fallback={<FallbackChassis progressRef={progressRef} />}>
+              <Suspense fallback={<FallbackChassis progressRef={progressRef} isLoading={true} />}>
                 <CarGLBModel progressRef={progressRef} paintHex={activePaintHex} />
               </Suspense>
             </ModelErrorBoundary>
 
             <InternalHardwareRig
               progressRef={progressRef}
+              showGridCaptions={show3DGridLabels}
               hoveredPartId={hoveredPartId}
               setHoveredPartId={setHoveredPartId}
               onSelectPart={onSelectPart}
@@ -914,90 +969,39 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
           )}
         </AnimatePresence>
 
-        {/* Stage 05 Overlay: Clean Captions + Live Hovered Part Telemetry Banner */}
+        {/* Stage 05 Top Telemetry Hover Pill */}
         <AnimatePresence>
           {show3DGridLabels && (
-            <>
-              <motion.div
-                key="stage-05-hover-pill"
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="pointer-events-none absolute left-1/2 top-16 z-30 w-[92%] max-w-xl -translate-x-1/2 text-center sm:top-7"
-              >
-                <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-black/75 px-4 py-1.5 text-[11px] text-zinc-200 backdrop-blur-md">
-                  {hoveredPart ? (
-                    <>
-                      <span className="font-mono-tech font-semibold text-[#ff7375]">{hoveredPart.sku}</span>
-                      <span className="font-medium text-white">{hoveredPart.name}</span>
-                      <span className="hidden text-zinc-400 sm:inline">•</span>
-                      <span className="font-mono-tech hidden text-sky-300 sm:inline">
-                        From AED {hoveredPart.variants.standard.priceAED.toLocaleString()}
-                      </span>
-                      <span className="text-emerald-400">Click to Configure ↗</span>
-                    </>
-                  ) : (
-                    <span className="font-mono-tech text-[10px] uppercase tracking-[0.18em] text-zinc-300">
-                      Hover or Tap Any 3D Assembly to Inspect Specs
+            <motion.div
+              key="stage-05-hover-pill"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="pointer-events-none absolute left-1/2 top-16 z-30 w-[92%] max-w-xl -translate-x-1/2 text-center sm:top-7"
+            >
+              <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-black/75 px-4 py-1.5 text-[11px] text-zinc-200 backdrop-blur-md">
+                {hoveredPart ? (
+                  <>
+                    <span className="font-mono-tech font-semibold text-[#ff7375]">{hoveredPart.sku}</span>
+                    <span className="font-medium text-white">{hoveredPart.name}</span>
+                    <span className="hidden text-zinc-400 sm:inline">•</span>
+                    <span className="font-mono-tech hidden text-sky-300 sm:inline">
+                      From AED {hoveredPart.variants.standard.priceAED.toLocaleString()}
                     </span>
-                  )}
-                </div>
-              </motion.div>
-
-              <motion.div
-                key="stage-3d-grid-captions"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-                className="pointer-events-none absolute inset-x-0 bottom-24 top-20 z-20 mx-auto flex max-w-5xl flex-col justify-between px-4 py-6 sm:px-8"
-              >
-                <div className="grid grid-cols-3 gap-2 pt-28 text-center sm:gap-6 sm:pt-32">
-                  <span
-                    className={`font-mono-tech text-[9px] uppercase tracking-[0.14em] transition-colors sm:text-[11px] sm:tracking-[0.2em] ${
-                      hoveredPartId === "cylinder-heads" ? "text-white font-semibold" : "text-zinc-300"
-                    }`}
-                  >
-                    Cylinder Heads
+                    <span className="text-emerald-400">Tap to Configure ↗</span>
+                  </>
+                ) : (
+                  <span className="font-mono-tech text-[10px] uppercase tracking-[0.16em] text-zinc-300">
+                    Tap Any 3D Assembly to Inspect Specs
                   </span>
-                  <span
-                    className={`font-mono-tech text-[9px] uppercase tracking-[0.14em] transition-colors sm:text-[11px] sm:tracking-[0.2em] ${
-                      hoveredPartId === "water-pumps" ? "text-white font-semibold" : "text-sky-300"
-                    }`}
-                  >
-                    Cooling & Fans
-                  </span>
-                  <span
-                    className={`font-mono-tech text-[9px] uppercase tracking-[0.14em] transition-colors sm:text-[11px] sm:tracking-[0.2em] ${
-                      hoveredPartId === "mufflers" ? "text-white font-semibold" : "text-amber-300"
-                    }`}
-                  >
-                    Exhaust & Mufflers
-                  </span>
-                </div>
-                <div className="mx-auto grid w-4/5 grid-cols-2 gap-4 pb-6 text-center sm:w-2/3 sm:gap-8 sm:pb-8">
-                  <span
-                    className={`font-mono-tech text-[9px] uppercase tracking-[0.14em] transition-colors sm:text-[11px] sm:tracking-[0.2em] ${
-                      hoveredPartId === "brake-pads-rotors" ? "text-white font-semibold" : "text-zinc-300"
-                    }`}
-                  >
-                    Brake Pads & Rotors
-                  </span>
-                  <span
-                    className={`font-mono-tech text-[9px] uppercase tracking-[0.14em] transition-colors sm:text-[11px] sm:tracking-[0.2em] ${
-                      hoveredPartId === "struts" ? "text-white font-semibold" : "text-[#ff7375]"
-                    }`}
-                  >
-                    Monotube Struts
-                  </span>
-                </div>
-              </motion.div>
-            </>
+                )}
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Stage 06: Clean 8-Part Catalog Cards */}
+        {/* Stage 06: Zero-Scroll-Trap 8-Part Card Grid (Fits cleanly on Mobile & Desktop) */}
         <AnimatePresence>
           {showFullCardGrid && (
             <motion.div
@@ -1006,18 +1010,18 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: LUXURY_EASE }}
-              className="absolute inset-x-0 bottom-16 top-16 z-20 mx-auto flex max-w-6xl flex-col justify-center px-4 sm:px-8"
+              className="absolute inset-x-0 bottom-16 top-16 z-20 mx-auto flex max-w-6xl flex-col justify-center px-3.5 sm:px-8"
             >
-              <div className="mb-3 text-center sm:mb-5">
-                <span className="font-mono-tech inline-block rounded-full border border-sky-400/35 bg-sky-500/10 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300">
+              <div className="mb-2 text-center sm:mb-5">
+                <span className="font-mono-tech inline-block rounded-full border border-sky-400/35 bg-sky-500/10 px-3 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-sky-300 sm:text-[10px]">
                   AL AHRAM CORE INVENTORY
                 </span>
-                <h3 className="mt-1.5 text-xl font-light text-white sm:text-3xl">
+                <h3 className="mt-1 text-lg font-light text-white sm:text-3xl">
                   Select a Precision Spare Part
                 </h3>
               </div>
 
-              <div className="grid max-h-[65dvh] grid-cols-2 gap-2.5 overflow-y-auto pr-1 sm:max-h-none sm:grid-cols-4 sm:gap-3.5 sm:overflow-visible">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3.5">
                 {showcaseParts.map((part, idx) => (
                   <motion.button
                     key={part.id}
@@ -1026,16 +1030,16 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.35, delay: idx * 0.035, ease: LUXURY_EASE }}
                     onClick={() => onSelectPart(part.id)}
-                    className="group flex flex-col justify-between rounded-2xl border border-white/15 bg-[#12151E]/90 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-[#D9383A] hover:bg-[#181C28] sm:p-4"
+                    className="group flex flex-col justify-between rounded-xl border border-white/15 bg-[#12151E]/90 p-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-[#D9383A] hover:bg-[#181C28] sm:rounded-2xl sm:p-4"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-mono-tech text-[9px] font-semibold uppercase tracking-[0.15em] text-zinc-400">
+                      <span className="font-mono-tech text-[8px] font-semibold uppercase tracking-[0.14em] text-zinc-400 sm:text-[9px]">
                         {part.sku}
                       </span>
-                      <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500 transition-colors group-hover:text-[#D9383A]" />
+                      <ArrowUpRight className="h-3 w-3 text-zinc-500 transition-colors group-hover:text-[#D9383A] sm:h-3.5 sm:w-3.5" />
                     </div>
 
-                    <div className="my-1.5 h-12 sm:my-2 sm:h-16">
+                    <div className="my-1 h-9 sm:my-2 sm:h-16">
                       <PartBlueprintSVG
                         type={part.visualType}
                         isPerformance={true}
@@ -1045,9 +1049,11 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
                     </div>
 
                     <div>
-                      <div className="text-xs font-medium text-white sm:text-sm">{part.name}</div>
-                      <div className="font-mono-tech mt-0.5 text-[10px] text-zinc-400">
-                        From AED {part.variants.standard.priceAED.toLocaleString()}
+                      <div className="truncate text-[11px] font-medium text-white sm:text-sm">
+                        {part.name}
+                      </div>
+                      <div className="font-mono-tech mt-0.5 text-[9px] text-zinc-400 sm:text-[10px]">
+                        AED {part.variants.standard.priceAED.toLocaleString()}
                       </div>
                     </div>
                   </motion.button>
@@ -1058,11 +1064,11 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
         </AnimatePresence>
 
         {/* Top-Left Brand HUD */}
-        <div className="pointer-events-none absolute left-5 top-4 z-20 sm:left-10 sm:top-6">
-          <div className="font-mono-tech text-[10px] font-semibold uppercase tracking-[0.28em] text-[#D9383A]">
+        <div className="pointer-events-none absolute left-4 top-4 z-20 sm:left-10 sm:top-6">
+          <div className="font-mono-tech text-[9px] font-semibold uppercase tracking-[0.24em] text-[#D9383A] sm:text-[10px]">
             AL AHRAM AUTO SPARE PARTS LLC
           </div>
-          <div className="mt-0.5 text-[11px] uppercase tracking-[0.2em] text-zinc-400">
+          <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-400 sm:text-[11px]">
             3D Architecture Sequence
           </div>
         </div>
@@ -1071,22 +1077,22 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
         <button
           type="button"
           onClick={onComplete}
-          className="absolute right-5 top-4 z-30 inline-flex min-h-[36px] items-center gap-2 rounded-full border border-white/25 bg-black/65 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-100 backdrop-blur-md transition-all hover:border-white hover:bg-white hover:text-black sm:right-10 sm:top-6"
+          className="absolute right-4 top-4 z-30 inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-white/25 bg-black/65 px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-100 backdrop-blur-md transition-all hover:border-white hover:bg-white hover:text-black sm:right-10 sm:top-6 sm:min-h-[36px] sm:px-4 sm:text-[11px]"
         >
-          {showFullCardGrid ? "Enter Full Website" : "Skip Intro"} <ArrowDown className="h-3.5 w-3.5" />
+          {showFullCardGrid ? "Enter Website" : "Skip Intro"} <ArrowDown className="h-3.5 w-3.5" />
         </button>
 
         {/* Bottom-Left Stage Callout */}
-        <div className="pointer-events-none absolute bottom-5 left-5 z-20 max-w-md sm:bottom-8 sm:left-10">
-          <div className="font-mono-tech inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300 backdrop-blur-md">
+        <div className="pointer-events-none absolute bottom-4 left-4 z-20 max-w-[65%] sm:bottom-8 sm:left-10 sm:max-w-md">
+          <div className="font-mono-tech inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-sky-300 backdrop-blur-md sm:px-3 sm:py-1 sm:text-[10px]">
             STAGE {currentStage.num} / 06
           </div>
           {!showFullCardGrid && (
             <>
-              <h2 className="mt-2 text-xl font-light tracking-tight text-white sm:text-3xl">
+              <h2 className="mt-1.5 text-lg font-light tracking-tight text-white sm:mt-2 sm:text-3xl">
                 {currentStage.title}
               </h2>
-              <p className="mt-1 text-xs leading-relaxed text-zinc-300 sm:text-sm">
+              <p className="mt-0.5 hidden text-xs leading-relaxed text-zinc-300 sm:block sm:text-sm">
                 {currentStage.subtitle}
               </p>
             </>
@@ -1094,11 +1100,11 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
         </div>
 
         {/* Bottom-Right Progress Bar */}
-        <div className="pointer-events-none absolute bottom-5 right-5 z-20 flex flex-col items-end gap-1.5 sm:bottom-8 sm:right-10">
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.22em] text-zinc-400">
-            {scrollPct < 90 ? "SCROLL TO EXPLORE" : "KEEP SCROLLING TO ENTER"} • {scrollPct}%
+        <div className="pointer-events-none absolute bottom-4 right-4 z-20 flex flex-col items-end gap-1.5 sm:bottom-8 sm:right-10">
+          <span className="font-mono-tech text-[9px] uppercase tracking-[0.18em] text-zinc-400 sm:text-[10px]">
+            {scrollPct < 90 ? "SCROLL" : "ENTER"} • {scrollPct}%
           </span>
-          <div className="h-[2px] w-28 overflow-hidden rounded-full bg-white/15 sm:w-40">
+          <div className="h-[2px] w-24 overflow-hidden rounded-full bg-white/15 sm:w-40">
             <div
               className="h-full bg-[#D9383A] transition-all duration-75"
               style={{ width: `${scrollPct}%` }}
