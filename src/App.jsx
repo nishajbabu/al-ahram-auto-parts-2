@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, animate } from "framer-motion";
 import {
   ArrowLeft,
@@ -43,6 +43,8 @@ import {
   EngineeringStudioSection,
   PartBlueprintSVG,
 } from "./components/PrecisionVisuals";
+
+const ScrollCarIntro3D = lazy(() => import("./components/ScrollCarIntro3D"));
 
 function AnimatedCounter({ value, suffix = "" }) {
   const [display, setDisplay] = useState(value);
@@ -142,6 +144,19 @@ const HOME_CHAPTERS = [
 
 export default function App() {
   const [view, setView] = useState("home");
+  const [introDone, setIntroDone] = useState(false);
+
+  const completeIntro = () => {
+  setIntroDone(true);
+  window.scrollTo(0, 0);
+};
+
+useEffect(() => {
+  if (introDone) {
+    window.scrollTo(0, 0);
+  }
+}, [introDone]);
+
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [selectedPartId, setSelectedPartId] = useState(PARTS_CATALOG[0].id);
   const [heroIndex, setHeroIndex] = useState(0);
@@ -373,7 +388,27 @@ export default function App() {
 
   return (
     <>
-    <div className="min-h-screen overflow-x-hidden bg-[#0B0B0D] text-zinc-100 selection:bg-[#D9383A] selection:text-white print:hidden">
+      {!introDone && view === "home" && (
+        <Suspense
+          fallback={
+            <div className="flex h-[100dvh] items-center justify-center bg-[#0B0B0D] font-mono-tech text-xs uppercase tracking-[0.25em] text-zinc-400">
+              Loading 3D Vehicle Architecture...
+            </div>
+          }
+        >
+          <ScrollCarIntro3D
+            onComplete={completeIntro}
+            onSelectPart={(partId) => {
+              setIntroDone(true);
+              openProductView(partId, "performance");
+            }}
+          />
+        </Suspense>
+      )}
+
+      {(introDone || view !== "home") && (
+
+      <div className="min-h-screen overflow-x-hidden bg-[#0B0B0D] text-zinc-100 selection:bg-[#D9383A] selection:text-white print:hidden">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0B0B0D]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-10">
           <button
@@ -1342,6 +1377,17 @@ export default function App() {
               </a>
               <p className="mt-6 text-[11px] text-zinc-500">
                 © {new Date().getFullYear()} {BRAND_INFO.legalName}. Worldwide On-Time Delivery.
+                <button
+                type="button"
+                onClick={() => {
+                  setView("home");
+                  setIntroDone(false);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="mt-2 font-mono-tech text-[10px] uppercase tracking-[0.18em] text-zinc-400 underline underline-offset-4 hover:text-white"
+              >
+                Replay 3D Intro
+              </button>
               </p>
             </div>
           </div>
@@ -1542,6 +1588,7 @@ export default function App() {
         <span className="hidden uppercase tracking-wider sm:inline">24x7 Parts Desk</span>
       </a>
     </div>
+    )}
     {/* ==================== PRINTABLE PROFORMA QUOTE (PDF) ==================== */}
    <div className="hidden bg-white p-10 text-black print:block">
      <div className="flex items-start justify-between border-b-2 border-black pb-6">
