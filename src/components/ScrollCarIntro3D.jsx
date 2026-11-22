@@ -760,6 +760,7 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
   const orbitRef = useRef({ yaw: 0, dragging: false, lastX: 0 });
 
   const [stageIdx, setStageIdx] = useState(0);
+  const [showScrollHint, setShowScrollHint] = useState(true);
   const [paintId, setPaintId] = useState("original");
   const [hoveredPartId, setHoveredPartId] = useState(null);
 
@@ -787,6 +788,7 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
   useEffect(() => {
     const unsub = scrollYProgress.on("change", (v) => {
       progressRef.current = v;
+      setShowScrollHint(v < 0.03);
 
       if (v < 0.18) setStageIdx(0);
       else if (v < 0.34) setStageIdx(1);
@@ -1061,6 +1063,23 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
         >
           {showFullCardGrid ? "Enter Site" : "Skip Intro"} <ArrowDown className="h-3.5 w-3.5" />
         </button>
+        <AnimatePresence>
+       {showScrollHint && (
+         <motion.div
+           key="intro-scroll-hint"
+           initial={{ opacity: 0, y: 6 }}
+           animate={{ opacity: 1, y: 0 }}
+           exit={{ opacity: 0, y: 6 }}
+           transition={{ duration: 0.35 }}
+           className="pointer-events-none absolute bottom-6 left-1/2 z-20 -translate-x-1/2"
+         >
+           <div className="font-mono-tech flex animate-pulse items-center gap-2 rounded-full border border-white/15 bg-black/55 px-4 py-1.5 text-[10px] uppercase tracking-[0.22em] text-zinc-300 backdrop-blur-md">
+             <span>Scroll to Explore</span>
+             <ArrowDown className="h-3 w-3 text-[#D9383A]" />
+           </div>
+         </motion.div>
+       )}
+     </AnimatePresence>
       </div>
     </section>
   );

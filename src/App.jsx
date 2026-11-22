@@ -408,7 +408,13 @@ useEffect(() => {
 
       {(introDone || view !== "home") && (
 
-      <div className="min-h-screen overflow-x-hidden bg-[#0B0B0D] text-zinc-100 selection:bg-[#D9383A] selection:text-white print:hidden">
+      <motion.div
+     key="main-site-shell"
+     initial={{ opacity: 0 }}
+     animate={{ opacity: 1 }}
+     transition={{ duration: 0.5, ease: LUXURY_EASE }}
+     className="min-h-screen overflow-x-hidden bg-[#0B0B0D] text-zinc-100 selection:bg-[#D9383A] selection:text-white print:hidden"
+   >
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0B0B0D]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-10">
           <button
@@ -1587,7 +1593,7 @@ useEffect(() => {
         <MessageCircle className="h-4 w-4 text-emerald-400" />
         <span className="hidden uppercase tracking-wider sm:inline">24x7 Parts Desk</span>
       </a>
-    </div>
+    </motion.div>
     )}
     {/* ==================== PRINTABLE PROFORMA QUOTE (PDF) ==================== */}
    <div className="hidden bg-white p-10 text-black print:block">
