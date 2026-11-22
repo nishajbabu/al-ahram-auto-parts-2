@@ -55,19 +55,21 @@ function CarGLBModel({ progressRef, paintHex }) {
   const { scene } = useGLTF("/models/car.glb");
   const groupRef = useRef(null);
   const isXrayActiveRef = useRef(false);
+  const xrayMatRef = useRef(null);
 
-  // Single ultra-fast unlit wireframe material for 60fps X-Ray & Explode
-  const xrayMaterial = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: "#38bdf8",
-        wireframe: true,
-        transparent: true,
-        opacity: 0.18,
-        depthWrite: false,
-      }),
-    []
-  );
+  useEffect(() => {
+    const mat = new THREE.MeshBasicMaterial({
+      color: "#38bdf8",
+      wireframe: true,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    });
+    xrayMatRef.current = mat;
+    return () => {
+      mat.dispose();
+    };
+  }, []);
 
   const { normalizedScene, meshRecords } = useMemo(() => {
     const clone = scene.clone(true);
@@ -118,7 +120,6 @@ function CarGLBModel({ progressRef, paintHex }) {
     return { normalizedScene: clone, meshRecords: records };
   }, [scene]);
 
-  // Apply paint color only when swatch changes (zero per-frame overhead)
   useEffect(() => {
     const target = paintHex ? new THREE.Color(paintHex) : null;
     meshRecords.forEach(({ solidMat, baseColor, isPaintable }) => {
@@ -138,16 +139,16 @@ function CarGLBModel({ progressRef, paintHex }) {
       groupRef.current.visible = explodeAmt < 0.98;
     }
 
-    // Swap material reference only once when crossing into/out of X-Ray mode
-    if (xrayMode !== isXrayActiveRef.current) {
+    const xrayMat = xrayMatRef.current;
+    if (xrayMat && xrayMode !== isXrayActiveRef.current) {
       isXrayActiveRef.current = xrayMode;
       meshRecords.forEach(({ mesh, solidMat }) => {
-        mesh.material = xrayMode ? xrayMaterial : solidMat;
+        mesh.material = xrayMode ? xrayMat : solidMat;
       });
     }
 
-    if (xrayMode) {
-      xrayMaterial.opacity = lerp(0.18, 0, explodeAmt);
+    if (xrayMode && xrayMat) {
+      xrayMat.opacity = lerp(0.18, 0, explodeAmt);
     }
   });
 
