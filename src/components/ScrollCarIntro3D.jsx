@@ -54,10 +54,22 @@ class ModelErrorBoundary extends Component {
 function CarGLBModel({ progressRef, paintHex }) {
   const { scene } = useGLTF("/models/car.glb");
   const groupRef = useRef(null);
-  const paintTargetRef = useRef(new THREE.Color());
-  const xrayColor = useMemo(() => new THREE.Color("#38bdf8"), []);
+  const isXrayActiveRef = useRef(false);
 
-  const { normalizedScene, materialsList } = useMemo(() => {
+  // Single ultra-fast unlit wireframe material for 60fps X-Ray & Explode
+  const xrayMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#38bdf8",
+        wireframe: true,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+      }),
+    []
+  );
+
+  const { normalizedScene, meshRecords } = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
     const size = new THREE.Vector3();
@@ -75,13 +87,10 @@ function CarGLBModel({ progressRef, paintHex }) {
       -center.z * scaleFactor
     );
 
-    const mats = [];
+    const records = [];
     clone.traverse((child) => {
       if (child.isMesh && child.material) {
         const clonedMat = child.material.clone();
-        clonedMat.transparent = true;
-        clonedMat.depthWrite = true;
-
         const meshName = `${child.name || ""} ${clonedMat.name || ""}`.toLowerCase();
         const baseColor = clonedMat.color ? clonedMat.color.clone() : new THREE.Color("#cbd5e1");
         const lum = 0.2126 * baseColor.r + 0.7152 * baseColor.g + 0.0722 * baseColor.b;
@@ -96,21 +105,32 @@ function CarGLBModel({ progressRef, paintHex }) {
         const isPaintable =
           /paint|body|car|exterior|hood|door|fender|roof|bumper/.test(meshName) || !isExcluded;
 
-        mats.push({
-          mat: clonedMat,
+        child.material = clonedMat;
+        records.push({
+          mesh: child,
+          solidMat: clonedMat,
           baseColor,
           isPaintable,
         });
-        child.material = clonedMat;
       }
     });
 
-    return { normalizedScene: clone, materialsList: mats };
+    return { normalizedScene: clone, meshRecords: records };
   }, [scene]);
+
+  // Apply paint color only when swatch changes (zero per-frame overhead)
+  useEffect(() => {
+    const target = paintHex ? new THREE.Color(paintHex) : null;
+    meshRecords.forEach(({ solidMat, baseColor, isPaintable }) => {
+      if (solidMat.color) {
+        solidMat.color.copy(target && isPaintable ? target : baseColor);
+      }
+    });
+  }, [paintHex, meshRecords]);
 
   useFrame(() => {
     const p = progressRef.current;
-    const xrayAmt = rangeProgress(p, 0.34, 0.48);
+    const xrayMode = p >= 0.34;
     const explodeAmt = rangeProgress(p, 0.52, 0.66);
 
     if (groupRef.current) {
@@ -118,24 +138,17 @@ function CarGLBModel({ progressRef, paintHex }) {
       groupRef.current.visible = explodeAmt < 0.98;
     }
 
-    if (paintHex) {
-      paintTargetRef.current.set(paintHex);
+    // Swap material reference only once when crossing into/out of X-Ray mode
+    if (xrayMode !== isXrayActiveRef.current) {
+      isXrayActiveRef.current = xrayMode;
+      meshRecords.forEach(({ mesh, solidMat }) => {
+        mesh.material = xrayMode ? xrayMaterial : solidMat;
+      });
     }
 
-    materialsList.forEach(({ mat, baseColor, isPaintable }) => {
-      const targetOpacity = lerp(1, 0.14, xrayAmt) * lerp(1, 0, explodeAmt);
-      mat.opacity = targetOpacity;
-      mat.depthWrite = xrayAmt < 0.25;
-      mat.wireframe = xrayAmt > 0.48;
-
-      if (mat.color) {
-        const chosenBase = paintHex && isPaintable ? paintTargetRef.current : baseColor;
-        mat.color.lerp(chosenBase, 0.14);
-        if (xrayAmt > 0.01) {
-          mat.color.lerp(xrayColor, xrayAmt * 0.78);
-        }
-      }
-    });
+    if (xrayMode) {
+      xrayMaterial.opacity = lerp(0.18, 0, explodeAmt);
+    }
   });
 
   return (
@@ -313,14 +326,14 @@ function InternalHardwareRig({
   const coilGeo = useMemo(() => {
     const pts = [];
     const turns = 7;
-    const steps = 96;
+    const steps = 56;
     for (let i = 0; i <= steps; i += 1) {
       const t = i / steps;
       const angle = t * turns * Math.PI * 2;
       pts.push(new THREE.Vector3(Math.cos(angle) * 0.088, t * 0.44 - 0.22, Math.sin(angle) * 0.088));
     }
     const curve = new THREE.CatmullRomCurve3(pts);
-    return new THREE.TubeGeometry(curve, 84, 0.018, 12, false);
+    return new THREE.TubeGeometry(curve, 44, 0.018, 8, false);
   }, []);
 
   const exhaustPipeGeo = useMemo(() => {
@@ -660,9 +673,22 @@ function InternalHardwareRig({
           }}
           position={pos}
         >
-          <DetailedBrakeUnit sideSign={pos[0] < 0 ? -1 : 1} />
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.33, 0.33, 0.06, 20]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.25} />
+          </mesh>
+          <mesh position={[pos[0] < 0 ? -0.02 : 0.02, 0.14, 0.21]} rotation={[0.45, 0, 0]}>
+            <boxGeometry args={[0.13, 0.22, 0.15]} />
+            <meshStandardMaterial color="#D9383A" metalness={0.65} roughness={0.28} />
+          </mesh>
           <group position={[pos[0] < 0 ? 0.17 : -0.17, 0.42, 0]}>
-            <DetailedStrutUnit coilGeo={coilGeo} />
+            <mesh position={[0, 0.06, 0]}>
+              <cylinderGeometry args={[0.035, 0.035, 0.56, 10]} />
+              <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.22} />
+            </mesh>
+            <mesh position={[0, 0.04, 0]} geometry={coilGeo}>
+              <meshStandardMaterial color="#D9383A" metalness={0.65} roughness={0.28} />
+            </mesh>
           </group>
         </group>
       ))}
@@ -825,10 +851,10 @@ export default function ScrollCarIntro3D({ onComplete, onSelectPart }) {
         >
           <Canvas
             camera={{ position: [4.4, 1.75, 4.6], fov: 40 }}
-            dpr={[1, 2]}
+            dpr={[1, 1.5]}
             gl={{ antialias: true, alpha: true }}
           >
-            <Environment resolution={256}>
+            <Environment resolution={128}>
               <Lightformer
                 form="rect"
                 intensity={2.8}
