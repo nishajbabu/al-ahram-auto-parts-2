@@ -142,20 +142,26 @@ const HOME_CHAPTERS = [
   { id: "section-timeline", num: "05", label: "Global Hub" },
 ];
 
+function resetScrollInstant() {
+  const htmlEl = document.documentElement;
+  const prev = htmlEl.style.scrollBehavior;
+  htmlEl.style.scrollBehavior = "auto";
+  window.scrollTo(0, 0);
+  htmlEl.scrollTop = 0;
+  document.body.scrollTop = 0;
+  requestAnimationFrame(() => {
+    htmlEl.style.scrollBehavior = prev;
+  });
+}
+
 export default function App() {
   const [view, setView] = useState("home");
   const [introDone, setIntroDone] = useState(false);
 
   const completeIntro = () => {
-  setIntroDone(true);
-  window.scrollTo(0, 0);
-};
-
-useEffect(() => {
-  if (introDone) {
-    window.scrollTo(0, 0);
-  }
-}, [introDone]);
+    resetScrollInstant();
+    setIntroDone(true);
+  };
 
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [selectedPartId, setSelectedPartId] = useState(PARTS_CATALOG[0].id);
@@ -223,8 +229,8 @@ useEffect(() => {
   }, [selectedCategoryId, fitment.make, searchQuery]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [view, selectedPartId]);
+    resetScrollInstant();
+  }, [introDone, view, selectedPartId]);
 
   useEffect(() => {
     if (view !== "home") return undefined;
